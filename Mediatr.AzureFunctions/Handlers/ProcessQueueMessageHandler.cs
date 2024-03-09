@@ -23,7 +23,11 @@ namespace IsolatedMediatr.Handlers
 
       public async Task<string> Handle(QueueMessageRequest request, CancellationToken cancellationToken)
       {
-         ValidateJson(request.QueueMessage);
+         var validationJsonResult = ValidateJson(request.QueueMessage);
+         if (validationJsonResult != null)
+         {
+            return await Task.FromResult(validationJsonResult);
+         }
 
          var person = JsonConvert.DeserializeObject<Person>(request.QueueMessage);
 
@@ -50,22 +54,17 @@ namespace IsolatedMediatr.Handlers
          return validationErrors.ToString();
       }
 
-      private static void ValidateJson(string queueItem)
+      private static string? ValidateJson(string queueItem)
       {
          try
          {
             JsonNode.Parse(queueItem);
          }
-         catch (FormatException fe)
-         {
-            throw new BadRequestException($"Invalid json format: {fe}");
-         }
-#pragma warning disable IDE0059
          catch (System.Exception e)
-#pragma warning restore IDE0059
          {
-            throw new BadRequestException($"[ValidateJson]: {e}");
+            return e.Message;
          }
+         return null;
       }
    }
 }
