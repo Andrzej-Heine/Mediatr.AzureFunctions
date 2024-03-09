@@ -1,4 +1,5 @@
-﻿using IsolatedMediatr.Exception;
+﻿using FluentValidation;
+using IsolatedMediatr.Exception;
 using IsolatedMediatr.Models;
 using IsolatedMediatr.Requests;
 using IsolatedMediatr.Validators;
@@ -10,55 +11,61 @@ using ValidationResult = FluentValidation.Results.ValidationResult;
 
 namespace IsolatedMediatr.Handlers
 {
-    public class ProcessQueueMessageHandler : IRequestHandler<QueueMessageRequest, string>
-    {
-        private readonly string _newLine = Environment.NewLine;
+   public class ProcessQueueMessageHandler : IRequestHandler<QueueMessageRequest, string>
+   {
+      private readonly string _newLine = Environment.NewLine;
+      private AbstractValidator<Person> _validator;
 
-        public async Task<string> Handle(QueueMessageRequest request, CancellationToken cancellationToken)
-        {
-            ValidateJson(request.QueueMessage);
-            var person = JsonConvert.DeserializeObject<Person>(request.QueueMessage);
+      public ProcessQueueMessageHandler(AbstractValidator<Person> personValidator)
+      {
+         _validator = personValidator;
+      }
 
-            var validator = new PersonValidator();
-            var validationResult = await validator.ValidateAsync(person, cancellationToken);
+      public async Task<string> Handle(QueueMessageRequest request, CancellationToken cancellationToken)
+      {
+         ValidateJson(request.QueueMessage);
 
-            if (validationResult.Errors.Any())
-            {
-                throw new BadRequestException("Invalid person object." + _newLine +
-                                                      GetValidationErrors(validationResult) + _newLine +
-                                                      request.QueueMessage);
-            }
+         var person = JsonConvert.DeserializeObject<Person>(request.QueueMessage);
 
-            return await Task.FromResult(request.QueueMessage);
-        }
+         var validationResult = await _validator.ValidateAsync(person, cancellationToken);
 
-        private static string GetValidationErrors(ValidationResult validationResult)
-        {
-            var validationErrors = new StringBuilder();
-            foreach (var error in validationResult.Errors)
-            {
-                validationErrors.Append(error.ErrorMessage);
-            }
+         if (validationResult.Errors.Any())
+         {
+            throw new BadRequestException("Invalid person object." + _newLine +
+                                                  GetValidationErrors(validationResult) + _newLine +
+                                                  request.QueueMessage);
+         }
 
-            return validationErrors.ToString();
-        }
+         return await Task.FromResult(request.QueueMessage);
+      }
 
-        private static void ValidateJson(string queueItem)
-        {
-            try
-            {
-                JsonNode.Parse(queueItem);
-            }
-            catch (FormatException fe)
-            {
-                throw new BadRequestException($"Invalid json format: {fe}");
-            }
+      private static string GetValidationErrors(ValidationResult validationResult)
+      {
+         var validationErrors = new StringBuilder();
+         foreach (var error in validationResult.Errors)
+         {
+            validationErrors.Append(error.ErrorMessage);
+         }
+
+         return validationErrors.ToString();
+      }
+
+      private static void ValidateJson(string queueItem)
+      {
+         try
+         {
+            JsonNode.Parse(queueItem);
+         }
+         catch (FormatException fe)
+         {
+            throw new BadRequestException($"Invalid json format: {fe}");
+         }
 #pragma warning disable IDE0059
-            catch (System.Exception e)
+         catch (System.Exception e)
 #pragma warning restore IDE0059
-            {
-                throw new BadRequestException($"[ValidateJson]: {e}");
-            }
-        }
-    }
+         {
+            throw new BadRequestException($"[ValidateJson]: {e}");
+         }
+      }
+   }
 }
