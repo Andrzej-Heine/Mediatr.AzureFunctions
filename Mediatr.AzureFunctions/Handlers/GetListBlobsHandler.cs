@@ -1,6 +1,6 @@
 ﻿using IsolatedMediatr.DateStore;
 using IsolatedMediatr.Models;
-using IsolatedMediatr.Queries;
+using IsolatedMediatr.Requests;
 using MediatR;
 
 namespace IsolatedMediatr.Handlers

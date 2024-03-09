@@ -1,4 +1,4 @@
-using IsolatedMediatr.Queries;
+using IsolatedMediatr.Requests;
 using MediatR;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
