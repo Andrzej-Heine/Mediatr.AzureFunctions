@@ -14,11 +14,11 @@ namespace IsolatedMediatr.Handlers
    public class ProcessQueueMessageHandler : IRequestHandler<QueueMessageRequest, string>
    {
       private readonly string _newLine = Environment.NewLine;
-      private AbstractValidator<Person> _validator;
+      private AbstractValidator<Person> _personValidator;
 
       public ProcessQueueMessageHandler(AbstractValidator<Person> personValidator)
       {
-         _validator = personValidator;
+         _personValidator = personValidator;
       }
 
       public async Task<string> Handle(QueueMessageRequest request, CancellationToken cancellationToken)
@@ -26,18 +26,17 @@ namespace IsolatedMediatr.Handlers
          var validationJsonResult = ValidateJson(request.QueueMessage);
          if (validationJsonResult != null)
          {
-            return await Task.FromResult(validationJsonResult);
+            return await Task.FromResult("[Invalid Json object] " + validationJsonResult);
          }
 
          var person = JsonConvert.DeserializeObject<Person>(request.QueueMessage);
 
-         var validationResult = await _validator.ValidateAsync(person, cancellationToken);
-
+         var validationResult = await _personValidator.ValidateAsync(person, cancellationToken);
          if (validationResult.Errors.Any())
          {
-            throw new BadRequestException("Invalid person object." + _newLine +
-                                                  GetValidationErrors(validationResult) + _newLine +
-                                                  request.QueueMessage);
+            return("[Invalid person object] " + _newLine +
+                    GetValidationErrors(validationResult) + _newLine +
+                    request.QueueMessage);
          }
 
          return await Task.FromResult(request.QueueMessage);
