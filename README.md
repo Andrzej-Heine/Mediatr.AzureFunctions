@@ -135,3 +135,121 @@ For example:
     }
 ]
 ```
+
+## xUnit Test project
+In project named `Mediatr.AzureFunctions.Tests` there are `PersonValidatorTests` class with tests for for `Person` Class.
+```csharp
+namespace IsolatedMediatr.Models
+{
+    public class Person
+    {
+        public string Name;
+        public string Email;
+    }
+}
+```
+
+The following validator is defined:
+```csharp
+namespace IsolatedMediatr.Validators
+{
+    public class PersonValidator : AbstractValidator<Person>
+    {
+        public PersonValidator()
+        {
+            RuleFor(x => x.Name).NotEmpty().NotNull().WithMessage("Name is required.");
+            RuleFor(x => x.Email).NotEmpty().NotNull().WithMessage("Email is required.");
+            RuleFor(x => x.Email).EmailAddress().WithMessage("Enter a valid Email Address.");
+        }
+    }
+}
+```
+
+The purpose of our tests is to check whether the defined validation meets our expectations.
+
+FluentValidation provides some extensions that helped in testing the validator class.
+The validator was treated as a "black box" - input data was passed to it, and then it was assessed whether the validation results were correct or incorrect.
+
+Using xUnit we want to ensure that this validator is working correctly by writing the following tests:
+
+```csharp
+   public class PersonValidatorTests
+   {
+      private readonly PersonValidator _validator;
+
+      public PersonValidatorTests()
+      {
+         _validator = new PersonValidator();
+      }
+
+      [Theory]
+      [ClassData(typeof(PersonNameTestData))]
+      public void Should_have_error_when_name_is_empty(Person recipeName)
+      {
+         var result = _validator.TestValidate(recipeName);
+         result.ShouldHaveValidationErrorFor(person => person.Name);
+      }
+
+      [Theory]
+      [ClassData(typeof(PersonEmailTestData))]
+      public void Should_have_error_when_email_is_empty_or_not_valid(Person recipeName)
+      {
+         var result = _validator.TestValidate(recipeName);
+         result.ShouldHaveValidationErrorFor(person => person.Email);
+      }
+}
+```
+If the assertion fails, then a 'ValidationTestException' will be thrown.
+
+To test a larger number of cases, private classes were defined which use the `ClassData` attribute to inject test cases into the defined tests.
+```csharp
+      private class PersonNameTestData : IEnumerable<object[]>
+      {
+         public IEnumerator<object[]> GetEnumerator()
+         {
+            yield return new object[] { new Person() { Name = "" } };
+            yield return new object[] { new Person() { Name = string.Empty } };
+            yield return new object[] { new Person() { Name = null } };
+         }
+
+         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+      }
+
+      private class PersonEmailTestData : IEnumerable<object[]>
+      {
+         public IEnumerator<object[]> GetEnumerator()
+         {
+            yield return new object[] { new Person() { Email = "" } };
+            yield return new object[] { new Person() { Email = string.Empty } };
+            yield return new object[] { new Person() { Email = null } };
+            yield return new object[] { new Person() { Email = "Andrzej.Heine" } };
+            yield return new object[] { new Person() { Email = "@gmail" } };
+            yield return new object[] { new Person() { Email = "@gmail.com" } };
+            yield return new object[] { new Person() { Email = "Andrzej.Heinegmail.com" } };
+
+         }
+
+         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+      }
+   }
+```
+
+
+On the other hand, we want to make sure that if the input data is correct, the validator will not report an error. For this purpose, we provide the correct data set as input.
+```csharp
+      [Fact]
+      public void Should_not_have_error_when_name_is_specified()
+      {
+         var person = new Person { Name = "Andrzej Heine" };
+         var result = _validator.TestValidate(person);
+         result.ShouldNotHaveValidationErrorFor(p => p.Name);
+      }
+
+      [Fact]
+      public void Should_not_have_error_when_email_is_specified()
+      {
+         var person = new Person { Email = "Andrzej.Heine@gmail.com" };
+         var result = _validator.TestValidate(person);
+         result.ShouldNotHaveValidationErrorFor(p => p.Email);
+      }
+```
