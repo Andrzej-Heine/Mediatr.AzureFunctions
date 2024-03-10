@@ -35,6 +35,8 @@ We'll need them for testing.
 - MediatR - handling requests and responses within azure functions.
 - Dependency injection - to manage services and dependencies.
 - FluentValidation - a .NET library for building strongly-typed validation rules.
+- Unit tests - xUnit framework was used https://xunit.net/
+
 ## ProcessQueueMessageFunction - Queue-Triggered Function
 This function will be triggered by new messages in Azure Storage Queue called `azure-input-queue`.
 
@@ -136,7 +138,7 @@ For example:
 ]
 ```
 
-## xUnit Test project
+## Unit tests
 In project named `Mediatr.AzureFunctions.Tests` there are `PersonValidatorTests` class with tests for for `Person` Class.
 ```csharp
 namespace IsolatedMediatr.Models
@@ -251,5 +253,104 @@ On the other hand, we want to make sure that if the input data is correct, the v
          var person = new Person { Email = "Andrzej.Heine@gmail.com" };
          var result = _validator.TestValidate(person);
          result.ShouldNotHaveValidationErrorFor(p => p.Email);
+      }
+```
+
+Unit tests for the handler called `ProcessQueueMessageHandler.cs` have been added to the class named `ProcessQueueMessageHandlerTests.cs`
+
+The purpose of our tests is to check whether the defined validation correctly handles the situation when the message does not meet the conditions connected with Json object.
+
+```csharp
+      [Theory]
+      [ClassData(typeof(QueueMessageRequestTestData_InvalidJsonObject))]
+      public async Task ProcessQueueMessageHandler_ValidateJson_InvalidJsonObject(QueueMessageRequest queueMessageRequest)
+      {
+         //Arrange
+         var handler = new ProcessQueueMessageHandler(_personValidator);
+
+         //Act
+         var result = await handler.Handle(queueMessageRequest, new CancellationToken());
+
+         //Assert
+         Assert.StartsWith("[Invalid Json object]", result);
+      }
+
+      private class QueueMessageRequestTestData_InvalidJsonObject : IEnumerable<object[]>
+      {
+         public IEnumerator<object[]> GetEnumerator()
+         {
+            yield return new object[] { new QueueMessageRequest() { QueueMessage = "" } };
+            yield return new object[] { new QueueMessageRequest() { QueueMessage = string.Empty } };
+            yield return new object[] { new QueueMessageRequest() { QueueMessage = null } };
+            yield return new object[] { new QueueMessageRequest() { QueueMessage = "abc" } };
+         }
+
+         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+      }
+```
+
+And checking the handling when the correct Person object was not passed:
+
+```csharp
+      [Theory]
+      [ClassData(typeof(QueueMessageRequestTestData_InvalidPersonObject))]
+      public async Task ProcessQueueMessageHandler_PersonValidator_InvalidPersonObject(QueueMessageRequest queueMessageRequest)
+      {
+         //Arrange
+         var handler = new ProcessQueueMessageHandler(_personValidator);
+
+         //Act
+         var result = await handler.Handle(queueMessageRequest, new CancellationToken());
+
+         //Assert
+         Assert.StartsWith("[Invalid person object]", result);
+      }
+
+      private class QueueMessageRequestTestData_InvalidPersonObject : IEnumerable<object[]>
+      {
+         public IEnumerator<object[]> GetEnumerator()
+         {
+            yield return new object[] { new QueueMessageRequest() { QueueMessage = "{}" } };
+            yield return new object[] { new QueueMessageRequest() { QueueMessage = "{ \"Name\" : \"Andrzej Heine\"} " } };
+            yield return new object[] { new QueueMessageRequest() { QueueMessage = "{ \"Namev2\" : \"Andrzej Heine\"} " } };
+            yield return new object[] { new QueueMessageRequest() { QueueMessage = "{ \"Email\" : \"Andrzej.Heine@gmail.com  \"} " } };
+            yield return new object[] { new QueueMessageRequest() { QueueMessage = "{ \"Emailv2\" : \"Andrzej.Heine@gmail.com  \"} " } };
+         }
+
+         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+      }
+```
+
+And checking the handling when the correct Person object was passed:
+
+```csharp
+      [Fact]
+      public async Task ProcessQueueMessageHandler_ValidateJson_CorrectJsonObject()
+      {
+         //Arrange
+         var queueMessageRequest = new QueueMessageRequest()
+         { QueueMessage = "{\"Name\": \"Andrzej Heine\",\"Email\": \"andrzej.heine@gmail.com\"}" };
+         var handler = new ProcessQueueMessageHandler(_personValidator);
+
+         //Act
+         var result = await handler.Handle(queueMessageRequest, new CancellationToken());
+
+         //Assert
+         Assert.DoesNotContain("[Invalid Json object]", result);
+      }
+
+      [Fact]
+      public async Task ProcessQueueMessageHandler_PersonValidator_CorrectJsonObject()
+      {
+         //Arrange
+         var queueMessageRequest = new QueueMessageRequest()
+         { QueueMessage = "{\"Name\": \"Andrzej Heine\",\"Email\": \"andrzej.heine@gmail.com\"}" };
+         var handler = new ProcessQueueMessageHandler(_personValidator);
+
+         //Act
+         var result = await handler.Handle(queueMessageRequest, new CancellationToken());
+
+         //Assert
+         Assert.DoesNotContain("[Invalid person object]", result);
       }
 ```
